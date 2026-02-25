@@ -1,8 +1,9 @@
 const ffmpeg = require("fluent-ffmpeg");
 const path = require("path");
 
-// 👇 explicitly set ffmpeg path (VERY IMPORTANT on Windows)
-ffmpeg.setFfmpegPath("C:/ffmpeg-8.0.1-essentials_build/bin/ffmpeg.exe");
+if (process.env.FFMPEG_PATH) {
+  ffmpeg.setFfmpegPath(process.env.FFMPEG_PATH);
+}
 
 const extractAudio = (videoPath) => {
   return new Promise((resolve, reject) => {
@@ -10,6 +11,9 @@ const extractAudio = (videoPath) => {
 
     ffmpeg(videoPath)
       .output(audioPath)
+      .audioCodec("pcm_s16le")
+      .audioChannels(1)
+      .audioFrequency(16000)
       .on("end", () => {
         console.log("Audio extracted:", audioPath);
         resolve(audioPath);

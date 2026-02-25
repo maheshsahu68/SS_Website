@@ -1,56 +1,3 @@
-// const express = require("express");
-// const multer = require("multer");
-// const router = express.Router();
-// const transcribeAudio = require("../utils/transcribe");
-
-// // storage configuration
-// const storage = multer.diskStorage({
-//   destination: (req, file, cb) => {
-//     cb(null, "uploads/");
-//   },
-//   filename: (req, file, cb) => {
-//     cb(null, Date.now() + "-" + file.originalname);
-//   }
-// });
-
-// const upload = multer({ storage });
-
-// // POST: upload audio & video files
-// // router.post("/upload", upload.single("audio"), (req, res) => {
-// //   const isVideo = req.file.mimetype.startsWith("video");
-
-// //   res.json({
-// //     message: isVideo
-// //       ? "Video uploaded successfully"
-// //       : "Audio uploaded successfully",
-// //     file: req.file
-// //   });
-// // });
-// router.post("/upload", upload.single("audio"), async (req, res) => {
-//   try {
-//     let audioPath = req.file.path;
-
-//     // 👇 if video, extract audio
-//     if (req.file.mimetype.startsWith("video")) {
-//       audioPath = await extractAudio(req.file.path);
-//     }
-
-//     res.json({
-//       message: "Media uploaded & audio ready",
-//       file: req.file,
-//       audioPath
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ message: "Processing failed" });
-//   }
-// });
-
-// // POST: upload video and extract audio
-// const extractAudio = require("../utils/ffmpeg");
-
-// module.exports = router;
-
 const express = require("express");
 const multer = require("multer");
 const path = require("path");
@@ -59,8 +6,8 @@ const router = express.Router();
 
 // utils & models
 const extractAudio = require("../utils/ffmpeg");
-const transcribeAudio = require("../utils/transcribe").default;
-const { parseOpenAITranscription, searchWords } = require("../utils/processor");
+const transcribeAudio = require("../utils/transcribe");
+const { parseTranscription, searchWords } = require("../utils/processor");
 const summarizeText = require("../utils/summarize");
 const downloadYouTubeAudio = require("../utils/download");
 const Media = require("../models/Media");
@@ -71,6 +18,7 @@ const SENSITIVE_WORDS = require("../config/sensitiveWords");
 // =======================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
+    fs.mkdirSync("uploads", { recursive: true });
     cb(null, "uploads/");
   },
   filename: (req, file, cb) => {
@@ -97,11 +45,11 @@ async function processMedia(mediaId) {
       audioPath = await extractAudio(media.path);
     }
 
-    // transcribe via configured STT (OpenAI Whisper)
+    // transcribe via local whisper.cpp CLI
     const transcription = await transcribeAudio(audioPath);
 
     // parse segments + word-level index (fallback to proportional timestamps if needed)
-    const parsed = parseOpenAITranscription(transcription);
+    const parsed = parseTranscription(transcription);
 
     // detect sensitive words from parsed.words
     const sensitiveMatches = [];

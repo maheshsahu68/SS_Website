@@ -1,24 +1,73 @@
-const OpenAI = require("openai");
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function splitSentences(text = "") {
+  return String(text)
+    .replace(/\s+/g, " ")
+    .trim()
+    .match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
+}
 
-async function summarizeText(text) {
+function tokenize(sentence = "") {
+  return sentence
+    .toLowerCase()
+    .replace(/[^a-z0-9\s']/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2);
+}
+
+function summarizeText(text) {
   if (!text || !text.trim()) return "";
 
-  const prompt = `You are a concise summarizer. Produce a short (3-5 sentence) summary and then 3 bullet points describing the main topics. Output only plain text.`;
+  const sentences = splitSentences(text);
+  if (sentences.length <= 3) return sentences.join(" ").trim();
 
-  const userContent = `${prompt}\n\nTranscript:\n${text.slice(0, 20000)}`; // limit size
+  const stop = new Set([
+    "the",
+    "and",
+    "for",
+    "that",
+    "with",
+    "this",
+    "from",
+    "have",
+    "your",
+    "about",
+    "are",
+    "was",
+    "were",
+    "they",
+    "them",
+    "their",
+    "into",
+    "there",
+    "what",
+    "when",
+    "which",
+  ]);
 
-  const resp = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: "You summarize transcripts concisely." },
-      { role: "user", content: userContent },
-    ],
-    max_tokens: 400,
+  const freq = new Map();
+  const sentenceTokens = sentences.map((s) => tokenize(s).filter((w) => !stop.has(w)));
+
+  sentenceTokens.flat().forEach((token) => {
+    freq.set(token, (freq.get(token) || 0) + 1);
   });
 
-  const content = resp?.choices?.[0]?.message?.content ?? resp?.choices?.[0]?.text ?? "";
-  return content.trim();
+  const scored = sentenceTokens.map((tokens, idx) => {
+    const score = tokens.reduce((sum, t) => sum + (freq.get(t) || 0), 0) / Math.max(1, tokens.length);
+    return { idx, score, sentence: sentences[idx].trim() };
+  });
+
+  const topSentences = scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+    .sort((a, b) => a.idx - b.idx)
+    .map((x) => x.sentence);
+
+  const topTerms = [...freq.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([term]) => term);
+
+  const bullets = topTerms.map((t) => `- Key topic: ${t}`);
+  return `${topSentences.join(" ")}\n\n${bullets.join("\n")}`.trim();
 }
 
 module.exports = summarizeText;

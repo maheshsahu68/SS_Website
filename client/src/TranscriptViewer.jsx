@@ -46,7 +46,7 @@ export default function TranscriptViewer({ media, onSeek }) {
           <button onClick={handleSearch}>Find</button>
         </div>
         <div>
-          <button onClick={handleGenerateSummary} style={{ padding: '8px 10px' }}>AI Summary</button>
+          <button onClick={handleGenerateSummary} style={{ padding: '8px 10px' }}>Local Summary</button>
         </div>
       </div>
 

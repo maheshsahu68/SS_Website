@@ -8,10 +8,8 @@ function MediaUpload() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [mediaId, setMediaId] = useState(null);
   const [media, setMedia] = useState(null);
   const [linkUrl, setLinkUrl] = useState("");
-  const [polling, setPolling] = useState(false);
   const [triggeredSensitive, setTriggeredSensitive] = useState(new Set());
   const inputRef = useRef(null);
   const playerRef = useRef(null);
@@ -29,7 +27,6 @@ function MediaUpload() {
     setMsg("");
     setUploadedFile(null);
     setMedia(null);
-    setMediaId(null);
   };
 
   const startPolling = (id) => {
@@ -42,13 +39,11 @@ function MediaUpload() {
         if (data.status === "ready" || data.status === "failed") {
           clearInterval(pollRef.current);
           pollRef.current = null;
-          setPolling(false);
         }
       } catch (err) {
         console.error(err);
       }
     }, 2000);
-    setPolling(true);
   };
 
   useEffect(() => {
@@ -77,7 +72,6 @@ function MediaUpload() {
       setMsg(data.message);
       setUploadedFile(data.file);
       if (data.mediaId) {
-        setMediaId(data.mediaId);
         startPolling(data.mediaId);
       }
     } catch (err) {
@@ -100,7 +94,6 @@ function MediaUpload() {
       const data = await res.json();
       setMsg(data.message);
       if (data.mediaId) {
-        setMediaId(data.mediaId);
         startPolling(data.mediaId);
       }
     } catch (err) {
@@ -128,7 +121,6 @@ function MediaUpload() {
     setUploadedFile(null);
     setMsg("");
     setMedia(null);
-    setMediaId(null);
     setTriggeredSensitive(new Set());
     if (inputRef.current) inputRef.current.value = "";
   };
@@ -256,7 +248,7 @@ function MediaUpload() {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ flex: 1 }}>
                 <strong>Status:</strong> {media.status}
-                {media.status === 'processing' && <span> — processing transcript...</span>}
+                {media.status === 'processing' && <span> — processing transcript with local whisper.cpp...</span>}
                 {media.status === 'ready' && <span> — ready</span>}
               </div>
               <div style={{ width: 160, textAlign: 'right' }}>{media.size ? formatBytes(media.size) : ''}</div>
