@@ -1,16 +1,18 @@
 function splitSentences(text = "") {
-  return String(text)
-    .replace(/\s+/g, " ")
-    .trim()
-    .match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
+  return (
+    String(text)
+      .replace(/\s+/g, " ")
+      .trim()
+      .match(/[^.!?।]+[.!?।]+|[^.!?।]+$/gu) || []
+  );
 }
 
 function tokenize(sentence = "") {
   return sentence
-    .toLowerCase()
-    .replace(/[^a-z0-9\s']/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 2);
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\s']/gu, " ")
+    .split(/\s+/u)
+    .filter((w) => w.length > 1);
 }
 
 function summarizeText(text) {
@@ -41,6 +43,12 @@ function summarizeText(text) {
     "what",
     "when",
     "which",
+    "hai",
+    "hain",
+    "aur",
+    "ka",
+    "ke",
+    "ki",
   ]);
 
   const freq = new Map();

@@ -2,6 +2,12 @@ import { useState, useRef, useEffect } from "react";
 import "./css/MediaUpload.css";
 import TranscriptViewer from "./TranscriptViewer";
 
+const LANGUAGE_OPTIONS = [
+  { value: "auto", label: "Auto detect" },
+  { value: "en", label: "English" },
+  { value: "hi", label: "Hindi" },
+];
+
 function MediaUpload() {
   const [file, setFile] = useState(null);
   const [msg, setMsg] = useState("");
@@ -10,7 +16,12 @@ function MediaUpload() {
   const [dragging, setDragging] = useState(false);
   const [media, setMedia] = useState(null);
   const [linkUrl, setLinkUrl] = useState("");
+  const [language, setLanguage] = useState("auto");
   const [triggeredSensitive, setTriggeredSensitive] = useState(new Set());
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [quickQuery, setQuickQuery] = useState("");
+  const [quickMatches, setQuickMatches] = useState([]);
+  const [quickSearchLoading, setQuickSearchLoading] = useState(false);
   const inputRef = useRef(null);
   const playerRef = useRef(null);
   const pollRef = useRef(null);
@@ -27,6 +38,9 @@ function MediaUpload() {
     setMsg("");
     setUploadedFile(null);
     setMedia(null);
+    setShowTranscript(false);
+    setQuickQuery("");
+    setQuickMatches([]);
   };
 
   const startPolling = (id) => {
@@ -60,6 +74,7 @@ function MediaUpload() {
 
     const formData = new FormData();
     formData.append("audio", file);
+    formData.append("language", language);
 
     try {
       setLoading(true);
@@ -69,9 +84,11 @@ function MediaUpload() {
       });
 
       const data = await res.json();
-      setMsg(data.message);
+      setMsg(res.ok ? data.message : `${data.message}: ${data.error || "Unknown error"}`);
       setUploadedFile(data.file);
       if (data.mediaId) {
+        setShowTranscript(false);
+        setQuickMatches([]);
         startPolling(data.mediaId);
       }
     } catch (err) {
@@ -89,11 +106,13 @@ function MediaUpload() {
       const res = await fetch("http://localhost:5000/api/audio/process-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: linkUrl }),
+        body: JSON.stringify({ url: linkUrl, language }),
       });
       const data = await res.json();
-      setMsg(data.message);
+      setMsg(res.ok ? data.message : `${data.message}: ${data.error || "Unknown error"}`);
       if (data.mediaId) {
+        setShowTranscript(false);
+        setQuickMatches([]);
         startPolling(data.mediaId);
       }
     } catch (err) {
@@ -104,53 +123,72 @@ function MediaUpload() {
     }
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setDragging(false);
-    const dropped = e.dataTransfer.files && e.dataTransfer.files[0];
-    if (dropped) handleFile(dropped);
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setDragging(true);
-  };
-
   const clearFile = () => {
     setFile(null);
     setUploadedFile(null);
     setMsg("");
     setMedia(null);
     setTriggeredSensitive(new Set());
+    setShowTranscript(false);
+    setQuickQuery("");
+    setQuickMatches([]);
     if (inputRef.current) inputRef.current.value = "";
   };
 
+
+  const formatClock = (seconds = 0) => {
+    const safe = Math.max(0, Number(seconds) || 0);
+    const mins = Math.floor(safe / 60);
+    const secs = Math.floor(safe % 60);
+    const ms = Math.round((safe - Math.floor(safe)) * 1000)
+      .toString()
+      .padStart(3, "0");
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}.${ms}`;
+  };
+
+  const handleQuickSearch = async () => {
+    if (!media?._id || !quickQuery.trim()) return;
+    setQuickSearchLoading(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/audio/${media._id}/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: quickQuery }),
+      });
+      const data = await res.json();
+      setQuickMatches(data.matches || []);
+    } catch (error) {
+      console.error(error);
+      setQuickMatches([]);
+    } finally {
+      setQuickSearchLoading(false);
+    }
+  };
   const onSeek = (time) => {
     if (!playerRef.current) return;
-    playerRef.current.currentTime = Math.max(0, time - 0.25);
+    playerRef.current.currentTime = Math.max(0, Number(time));
     playerRef.current.play().catch(() => {});
   };
 
   const onTimeUpdate = () => {
     const p = playerRef.current;
     if (!p || !media?.sensitive || !media.sensitive.length) return;
-    const t = p.currentTime;
 
     for (const s of media.sensitive) {
       const key = `${s.word}@${s.start}`;
-      if (triggeredSensitive.has(key)) continue; // already handled
-      // pause shortly before the sensitive timestamp (0.4s)
-      if (t >= Math.max(0, s.start - 0.45) && t < s.start + 0.5) {
+      if (triggeredSensitive.has(key)) continue;
+
+      const preStop = Math.max(0, Number(s.start) - 0.35);
+      if (p.currentTime >= preStop && p.currentTime < s.end + 0.15) {
         p.pause();
         setTriggeredSensitive((prev) => new Set(prev).add(key));
         const confirmed = window.confirm(
-          `Sensitive content detected ("${s.word}") at ${s.start.toFixed(2)}s. Continue playback?`
+          `Sensitive data detected ("${s.word}") near ${s.start.toFixed(2)}s. Do you want to continue listening?`
         );
         if (confirmed) {
           p.play().catch(() => {});
         } else {
-          // skip past the sensitive chunk
-          p.currentTime = s.end + 0.25;
+          p.currentTime = s.end + 0.1;
         }
         break;
       }
@@ -161,18 +199,18 @@ function MediaUpload() {
     const src = uploadedFile
       ? `http://localhost:5000/uploads/${uploadedFile.filename}`
       : media?.path
-      ? `http://localhost:5000/${media.path.replace(/^\\/,'')}`
+      ? `http://localhost:5000/${media.path.replace(/^\\/, "")}`
       : null;
 
     const mimetype = uploadedFile ? uploadedFile.mimetype : file?.type || media?.mimeType;
 
     if (!src) return null;
 
-    if (mimetype && mimetype.startsWith("audio")) {
+    if (mimetype?.startsWith("audio")) {
       return <audio ref={playerRef} controls src={src} onTimeUpdate={onTimeUpdate} />;
     }
 
-    if (mimetype && mimetype.startsWith("video")) {
+    if (mimetype?.startsWith("video")) {
       return <video ref={playerRef} controls src={src} onTimeUpdate={onTimeUpdate} />;
     }
 
@@ -182,13 +220,41 @@ function MediaUpload() {
   return (
     <div className="upload-container">
       <div className="upload-card">
-        <h2 className="brand">🎵 SonicSearch</h2>
-        <p className="subtitle">Upload Audio/Video or paste a public link (YouTube)</p>
+        <header className="header-block">
+          <h2 className="brand">🎵 SonicSearch</h2>
+          <p className="subtitle">
+            Accurate transcript search, better timestamp jumps, and multilingual support (including Hindi).
+          </p>
+        </header>
+
+        <div className="controls-grid">
+          <label>
+            Transcription language
+            <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+              {LANGUAGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <small>
+            Tip: For Hindi, use a multilingual Whisper model (not <code>*.en</code> models).
+          </small>
+        </div>
 
         <div
           className={`dropzone ${dragging ? "dragging" : ""}`}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            const dropped = e.dataTransfer.files && e.dataTransfer.files[0];
+            if (dropped) handleFile(dropped);
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
           onDragLeave={() => setDragging(false)}
           onClick={() => inputRef.current && inputRef.current.click()}
         >
@@ -200,8 +266,8 @@ function MediaUpload() {
             style={{ display: "none" }}
           />
           <div className="drop-inner">
-            <div className="big-label">Choose or drop file here</div>
-            <div className="small-label">Supports audio, video & YouTube links</div>
+            <div className="big-label">Choose or drop media file</div>
+            <div className="small-label">Audio, video and YouTube links are supported</div>
           </div>
         </div>
 
@@ -219,46 +285,92 @@ function MediaUpload() {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <button className="primary-btn" onClick={handleUpload} disabled={loading} style={{ flex: 1 }}>
-            {loading ? "Uploading..." : "Upload"}
+        <div className="action-row">
+          <button className="primary-btn" onClick={handleUpload} disabled={loading}>
+            {loading ? "Uploading..." : "Upload file"}
           </button>
         </div>
 
-        <div style={{ marginTop: 12 }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              placeholder="Paste YouTube link and press Process"
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid #ddd' }}
-            />
-            <button className="primary-btn" onClick={handleProcessLink} disabled={loading} style={{ padding: '8px 12px' }}>
-              {loading ? 'Processing...' : 'Process link'}
-            </button>
-          </div>
+        <div className="link-box">
+          <input
+            placeholder="Paste YouTube link and click Process"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+          />
+          <button className="primary-btn" onClick={handleProcessLink} disabled={loading}>
+            {loading ? "Processing..." : "Process link"}
+          </button>
         </div>
 
-        {msg && <p className={`message ${msg.toLowerCase().includes('success') ? 'success' : 'error'}`}>{msg}</p>}
+        {msg && <p className={`message ${msg.toLowerCase().includes("failed") ? "error" : "success"}`}>{msg}</p>}
 
         <div className="preview">{renderPreview()}</div>
 
         {media && (
           <div className="transcript-panel">
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <strong>Status:</strong> {media.status}
-                {media.status === 'processing' && <span> — processing transcript with local whisper.cpp...</span>}
-                {media.status === 'ready' && <span> — ready</span>}
+            <div className="status-row">
+              <div>
+                <strong>Status:</strong> <span className={`badge ${media.status}`}>{media.status}</span>
+                {media.status === "processing" && <span> generating transcript with whisper.cpp…</span>}
               </div>
-              <div style={{ width: 160, textAlign: 'right' }}>{media.size ? formatBytes(media.size) : ''}</div>
+              <div>{media.size ? formatBytes(media.size) : ""}</div>
             </div>
 
-            {media.status === 'ready' && (
-              <TranscriptViewer media={media} onSeek={onSeek} />
+            {media.status === "ready" && (
+              <>
+                <div className="quick-search-row">
+                  <input
+                    className="quick-search-input"
+                    placeholder="Search word/phrase in this media"
+                    value={quickQuery}
+                    onChange={(e) => setQuickQuery(e.target.value)}
+                  />
+                  <button className="secondary-btn" type="button" onClick={handleQuickSearch} disabled={quickSearchLoading}>
+                    {quickSearchLoading ? "Searching..." : "Search"}
+                  </button>
+                </div>
+
+                {quickMatches.length > 0 && (
+                  <div className="quick-matches-panel">
+                    <strong>Search results ({quickMatches.length})</strong>
+                    <ul>
+                      {quickMatches.map((m, i) => (
+                        <li key={`${m.start}-${i}`}>
+                          <button className="link-btn" type="button" onClick={() => onSeek(m.start)}>
+                            {formatClock(m.start)}
+                          </button>
+                          <span>{m.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="transcript-toggle-row">
+                  <button
+                    className="secondary-btn"
+                    onClick={() => setShowTranscript((prev) => !prev)}
+                    type="button"
+                  >
+                    {showTranscript ? "Hide transcription" : "Show transcription"}
+                  </button>
+                </div>
+
+                {showTranscript ? (
+                  <TranscriptViewer
+                    media={media}
+                    onSeek={onSeek}
+                    onSummaryReady={(summary) => setMedia((prev) => (prev ? { ...prev, summary } : prev))}
+                  />
+                ) : (
+                  <p className="transcript-hidden-note">
+                    Transcription is ready and generated. Click <strong>Show transcription</strong> to view it.
+                  </p>
+                )}
+              </>
             )}
 
-            {media.status === 'failed' && <div className="sensitive-warning">Processing failed: {media.error}</div>}
+            {media.status === "failed" && <div className="sensitive-warning">Processing failed: {media.error}</div>}
           </div>
         )}
       </div>

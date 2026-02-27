@@ -7,34 +7,54 @@ const router = express.Router();
 // utils & models
 const extractAudio = require("../utils/ffmpeg");
 const transcribeAudio = require("../utils/transcribe");
-const { parseTranscription, searchWords } = require("../utils/processor");
+const { parseTranscription, searchWords, detectSensitiveMatches } = require("../utils/processor");
 const summarizeText = require("../utils/summarize");
 const downloadYouTubeAudio = require("../utils/download");
 const Media = require("../models/Media");
 const SENSITIVE_WORDS = require("../config/sensitiveWords");
+
+const SUPPORTED_LANGUAGES = new Set(["auto", "en", "hi"]);
 
 // =======================
 // Multer configuration
 // =======================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    fs.mkdirSync("uploads", { recursive: true });
-    cb(null, "uploads/");
+    const uploadPath = path.join(__dirname, "..", "uploads");
+    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
+    const ext = path.extname(file.originalname);
+    const base = path.basename(file.originalname, ext).replace(/\s+/g, "-");
+    cb(null, `${Date.now()}-${base}${ext}`);
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 300 * 1024 * 1024, // 300MB
+  },
+});
 
-// -----------------------
-// Background processing
-// -----------------------
+function normalizeLanguage(language) {
+  const normalized = String(language || "auto").toLowerCase().trim();
+  const alias = {
+    hindi: "hi",
+    "hi-in": "hi",
+    english: "en",
+    "en-us": "en",
+    "en-gb": "en",
+  };
+  const mapped = alias[normalized] || normalized;
+  return SUPPORTED_LANGUAGES.has(mapped) ? mapped : "auto";
+}
+
 async function processMedia(mediaId) {
   try {
     const media = await Media.findById(mediaId);
-    if (!media) throw new Error("Media not found");
+    if (!media) return;
 
     await Media.findByIdAndUpdate(mediaId, { status: "processing" });
 
@@ -46,19 +66,13 @@ async function processMedia(mediaId) {
     }
 
     // transcribe via local whisper.cpp CLI
-    const transcription = await transcribeAudio(audioPath);
+    const transcription = await transcribeAudio(audioPath, media.transcriptionLanguage || "auto");
 
     // parse segments + word-level index (fallback to proportional timestamps if needed)
     const parsed = parseTranscription(transcription);
 
-    // detect sensitive words from parsed.words
-    const sensitiveMatches = [];
-    const lowerSensitive = SENSITIVE_WORDS.map((w) => w.toLowerCase());
-    parsed.words.forEach((w, idx) => {
-      if (lowerSensitive.includes(String(w.word).toLowerCase())) {
-        sensitiveMatches.push({ word: w.word, start: w.start, end: w.end, idx });
-      }
-    });
+    // detect sensitive words/phrases (credentials + harmful content)
+    const sensitiveMatches = detectSensitiveMatches(parsed.words || [], SENSITIVE_WORDS);
 
     // update DB
     await Media.findByIdAndUpdate(mediaId, {
@@ -82,6 +96,8 @@ router.post("/upload", upload.single("audio"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
+    const transcriptionLanguage = normalizeLanguage(req.body?.language);
+
     const mediaDoc = new Media({
       filename: req.file.filename,
       originalName: req.file.originalname,
@@ -89,6 +105,7 @@ router.post("/upload", upload.single("audio"), async (req, res) => {
       size: req.file.size,
       path: req.file.path,
       source: "upload",
+      transcriptionLanguage,
       status: "uploaded",
       uploadedAt: new Date(),
     });
@@ -110,7 +127,7 @@ router.post("/upload", upload.single("audio"), async (req, res) => {
 // =======================
 router.post("/process-link", async (req, res) => {
   try {
-    const { url } = req.body || {};
+    const { url, language } = req.body || {};
     if (!url) return res.status(400).json({ message: "Missing url" });
 
     // support YouTube (ytdl-core); extendable to other platforms
@@ -132,6 +149,7 @@ router.post("/process-link", async (req, res) => {
       size: stats.size,
       path: destPath,
       source: "link",
+      transcriptionLanguage: normalizeLanguage(language),
       originalUrl: url,
       status: "uploaded",
       uploadedAt: new Date(),

@@ -26,6 +26,7 @@ const MediaSchema = new mongoose.Schema({
   size: Number,
   path: String,
   source: { type: String, enum: ['upload', 'link'], default: 'upload' },
+  transcriptionLanguage: { type: String, default: 'auto' },
   originalUrl: String,
   status: { type: String, enum: ['uploaded', 'processing', 'ready', 'failed'], default: 'uploaded' },
   uploadedAt: Date,

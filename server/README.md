@@ -28,6 +28,7 @@ MONGODB_URI=mongodb://127.0.0.1:27017/sonicsearch
 WHISPER_CPP_MODEL=/absolute/path/to/ggml-base.en.bin
 # optional:
 # WHISPER_CPP_BIN=/absolute/path/to/whisper-cli
+# WHISPER_CPP_MODEL_HI=/absolute/path/to/multilingual-model.bin
 # FFMPEG_PATH=/absolute/path/to/ffmpeg
 # PORT=5000
 ```
@@ -38,3 +39,8 @@ WHISPER_CPP_MODEL=/absolute/path/to/ggml-base.en.bin
 npm install
 npm start
 ```
+
+
+## YouTube links
+
+The server prefers open-source `yt-dlp` (if installed) for better YouTube compatibility and falls back to `ytdl-core`.

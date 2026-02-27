@@ -1,13 +1,30 @@
 module.exports = [
-  // common sensitive examples; update as needed
-  'suicide',
-  'kill',
-  'murder',
-  'bomb',
-  'drugs',
-  'sex',
-  'porn',
-  'rape',
-  'violence',
-  'terror'
+  // Harmful / explicit content
+  "suicide",
+  "kill",
+  "murder",
+  "bomb",
+  "drugs",
+  "sex",
+  "porn",
+  "rape",
+  "violence",
+  "terror",
+
+  // Credentials / private information
+  "password",
+  "passcode",
+  "otp",
+  "one time password",
+  "pin",
+  "cvv",
+  "card number",
+  "bank details",
+  "account number",
+  "ifsc",
+  "upi pin",
+  "credential",
+  "credentials",
+  "login id",
+  "username",
 ];

@@ -1,6 +1,6 @@
 # SonicSearch (Local / Open-Source Setup)
 
-SonicSearch lets you upload audio/video (or a YouTube link), transcribe it locally with `whisper.cpp`, search transcript timestamps, and generate a local summary.
+SonicSearch lets you upload audio/video (or a YouTube link), transcribe it locally with `whisper.cpp`, search transcript timestamps, and generate a local summary. It supports auto, English, and Hindi transcription selection from the UI.
 
 ## Project structure
 
@@ -20,7 +20,7 @@ SonicSearch lets you upload audio/video (or a YouTube link), transcribe it local
 
 You need:
 
-- a Whisper model file (e.g. `ggml-base.en.bin`)
+- a Whisper model file (for Hindi/multilingual use a non-`.en` model such as `ggml-base.bin`)
 - the CLI executable (`whisper-cli`)
 
 If `whisper-cli` is not on PATH, use `WHISPER_CPP_BIN` to point to the executable directly.
@@ -37,6 +37,7 @@ WHISPER_CPP_MODEL=/absolute/path/to/ggml-base.en.bin
 
 # Optional
 # WHISPER_CPP_BIN=/absolute/path/to/whisper-cli
+# WHISPER_CPP_MODEL_HI=/absolute/path/to/multilingual-model.bin
 # FFMPEG_PATH=/absolute/path/to/ffmpeg
 # PORT=5000
 ```
@@ -102,5 +103,7 @@ npm run build
 
 - If upload/transcription fails immediately, confirm `WHISPER_CPP_MODEL` points to a real model file.
 - If error says `whisper-cli` not found, set `WHISPER_CPP_BIN`.
+- If Hindi transcription fails with a model error, set `WHISPER_CPP_MODEL_HI` to a multilingual model (not `*.en`).
+- For more reliable YouTube downloads, install open-source `yt-dlp` (the server will auto-use it when available).
 - If video/audio extraction fails, check `ffmpeg` installation or set `FFMPEG_PATH`.
 - If DB calls fail, make sure MongoDB is running and `MONGODB_URI` is correct.
