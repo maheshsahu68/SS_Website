@@ -1,0 +1,72 @@
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(145deg, #f3f5ff, #eef5ff);
+}
+
+.auth-card {
+  width: min(420px, 100%);
+  background: #fff;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 10px 30px rgba(23, 40, 93, 0.1);
+  display: grid;
+  gap: 12px;
+}
+
+.auth-card input,
+.auth-primary,
+.auth-guest,
+.tab-row button {
+  border: 1px solid #d6d8e5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+
+.auth-primary {
+  background: #3348d1;
+  color: #fff;
+  border-color: #3348d1;
+  cursor: pointer;
+}
+
+.auth-guest {
+  background: #fff;
+  color: #1b2456;
+  cursor: pointer;
+}
+
+.tab-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tab-row button.active {
+  background: #ebeeff;
+  border-color: #7a8cff;
+  font-weight: 600;
+}
+
+.divider {
+  font-size: 0.8rem;
+  text-align: center;
+  color: #6d7396;
+}
+
+.google-slot {
+  min-height: 44px;
+  display: flex;
+  justify-content: center;
+}
+
+.google-hint,
+.auth-message {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #4c5170;
+  line-height: 1.4;
+}

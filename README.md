@@ -40,11 +40,45 @@ WHISPER_CPP_MODEL=/absolute/path/to/ggml-base.en.bin
 # WHISPER_CPP_MODEL_HI=/absolute/path/to/multilingual-model.bin
 # FFMPEG_PATH=/absolute/path/to/ffmpeg
 # PORT=5000
+# JWT_SECRET=sonicsearchsupersecure2026
+# GOOGLE_CLIENT_ID=309276754683-5oaskor4cp6hs8i0o2so994a7al78vc3.apps.googleusercontent.com
+# CLIENT_ORIGIN=http://localhost:5173
 ```
 
 > On Windows, use full paths like `C:/...`.
 
 ---
+
+
+Create `client/.env`:
+
+```bash
+VITE_GOOGLE_CLIENT_ID=309276754683-5oaskor4cp6hs8i0o2so994a7al78vc3.apps.googleusercontent.com
+```
+
+
+## Google Sign-In setup (required)
+
+Google login works only after you configure OAuth in Google Cloud and set env values in both apps.
+
+1. Open Google Cloud Console → **APIs & Services** → **Credentials**.
+2. Create an **OAuth 2.0 Client ID** of type **Web application**.
+3. Add Authorized JavaScript origin(s):
+   - `http://localhost:5173` (or your frontend URL)
+4. Copy the generated client ID (looks like `...apps.googleusercontent.com`).
+5. Set the same client ID in both places:
+
+```bash
+# server/.env
+GOOGLE_CLIENT_ID=309276754683-5oaskor4cp6hs8i0o2so994a7al78vc3.apps.googleusercontent.com
+
+# client/.env
+VITE_GOOGLE_CLIENT_ID=309276754683-5oaskor4cp6hs8i0o2so994a7al78vc3.apps.googleusercontent.com
+```
+
+6. Restart backend and frontend after changing env vars.
+
+If these values are missing or do not match, Google sign-in will not work.
 
 ## 3) Install dependencies
 
@@ -107,3 +141,5 @@ npm run build
 - For more reliable YouTube downloads, install open-source `yt-dlp` (the server will auto-use it when available).
 - If video/audio extraction fails, check `ffmpeg` installation or set `FFMPEG_PATH`.
 - If DB calls fail, make sure MongoDB is running and `MONGODB_URI` is correct.
+
+- You can also continue as **Guest** from the login page without creating an account.

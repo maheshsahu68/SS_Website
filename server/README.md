@@ -31,6 +31,9 @@ WHISPER_CPP_MODEL=/absolute/path/to/ggml-base.en.bin
 # WHISPER_CPP_MODEL_HI=/absolute/path/to/multilingual-model.bin
 # FFMPEG_PATH=/absolute/path/to/ffmpeg
 # PORT=5000
+# JWT_SECRET=sonicsearchsupersecure2026
+# GOOGLE_CLIENT_ID=309276754683-5oaskor4cp6hs8i0o2so994a7al78vc3.apps.googleusercontent.com
+# CLIENT_ORIGIN=http://localhost:5173
 ```
 
 ## Run
@@ -44,3 +47,15 @@ npm start
 ## YouTube links
 
 The server prefers open-source `yt-dlp` (if installed) for better YouTube compatibility and falls back to `ytdl-core`.
+
+
+### Google sign-in
+
+To make Google sign-in work:
+
+- Create a Web OAuth client in Google Cloud Console.
+- Add `http://localhost:5173` to Authorized JavaScript origins.
+- Set `GOOGLE_CLIENT_ID` in `server/.env` to that exact client ID.
+- Set `VITE_GOOGLE_CLIENT_ID` in `client/.env` to the same client ID.
+- Restart both backend and frontend.
+

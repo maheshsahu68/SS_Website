@@ -5,6 +5,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 
 const audioRoutes = require("./routes/audioRoutes");
+const authRoutes = require("./routes/authRoutes");
 
 // Connect to MongoDB
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/sonicsearch";
@@ -14,12 +15,13 @@ mongoose
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:5173" }));
 app.use(express.json());
 
 app.use("/uploads", express.static("uploads"));
 
 app.use("/api/audio", audioRoutes);
+app.use("/api/auth", authRoutes);
 
 app.get("/", (req, res) => {
   res.send("SonicSearch Backend Running 🚀");
