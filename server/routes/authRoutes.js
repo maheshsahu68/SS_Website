@@ -2,10 +2,11 @@ const express = require("express");
 const crypto = require("crypto");
 
 const User = require("../models/User");
+const SessionLog = require("../models/SessionLog");
+const { createToken, verifyToken, getBearerToken } = require("../utils/authToken");
 
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || "sonicsearchsupersecure2026";
 const GOOGLE_CLIENT_ID =
   process.env.GOOGLE_CLIENT_ID ||
   "309276754683-5oaskor4cp6hs8i0o2so994a7al78vc3.apps.googleusercontent.com";
@@ -23,20 +24,27 @@ const verifyPassword = (password, stored) => {
   return crypto.timingSafeEqual(Buffer.from(originalHash, "hex"), Buffer.from(hash, "hex"));
 };
 
-const createToken = (user) => {
-  const payload = Buffer.from(
-    JSON.stringify({
-      sub: user._id.toString(),
+async function writeSessionLog(req, user, event, meta = {}) {
+  try {
+    const xForwardedFor = req.headers["x-forwarded-for"];
+    const ip = Array.isArray(xForwardedFor)
+      ? xForwardedFor[0]
+      : String(xForwardedFor || "").split(",")[0].trim() || req.ip || "unknown";
+
+    await SessionLog.create({
+      userId: user._id.toString(),
       email: user.email,
       name: user.name,
       provider: user.provider,
-      exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
-    })
-  ).toString("base64url");
-
-  const signature = crypto.createHmac("sha256", JWT_SECRET).update(payload).digest("base64url");
-  return `${payload}.${signature}`;
-};
+      event,
+      ip,
+      userAgent: req.headers["user-agent"] || "unknown",
+      meta,
+    });
+  } catch (error) {
+    console.error("session log write failed:", error.message);
+  }
+}
 
 router.post("/register", async (req, res) => {
   try {
@@ -56,12 +64,16 @@ router.post("/register", async (req, res) => {
       email: normalizedEmail,
       passwordHash: hashPassword(password),
       provider: "local",
+      providerId: normalizedEmail,
+      lastLoginAt: new Date(),
     });
+
+    await writeSessionLog(req, user, "register");
 
     return res.status(201).json({
       message: "Registered successfully",
       token: createToken(user),
-      user: { id: user._id, name: user.name, email: user.email, provider: user.provider },
+      user: { id: user._id, name: user.name, email: user.email, provider: user.provider, avatar: user.avatar || "" },
     });
   } catch (error) {
     console.error(error);
@@ -76,15 +88,23 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    user.lastLoginAt = new Date();
+    if (!user.providerId) {
+      user.providerId = user.provider === "google" ? user.googleId || normalizedEmail : normalizedEmail;
+    }
+    await user.save();
+    await writeSessionLog(req, user, "login");
+
     return res.json({
       message: "Login successful",
       token: createToken(user),
-      user: { id: user._id, name: user.name, email: user.email, provider: user.provider },
+      user: { id: user._id, name: user.name, email: user.email, provider: user.provider, avatar: user.avatar || "" },
     });
   } catch (error) {
     console.error(error);
@@ -116,28 +136,68 @@ router.post("/google", async (req, res) => {
     const email = payload.email?.toLowerCase();
     const googleId = payload.sub;
     const name = payload.name || "Google User";
+    const avatar = payload.picture || "";
 
     if (!email || !googleId) {
       return res.status(400).json({ message: "Invalid Google token payload" });
     }
 
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ $or: [{ email }, { provider: "google", providerId: googleId }, { googleId }] });
     if (!user) {
-      user = await User.create({ name, email, googleId, provider: "google" });
-    } else if (!user.googleId) {
-      user.googleId = googleId;
-      user.provider = "google";
-      await user.save();
+      try {
+        user = await User.create({
+          name,
+          email,
+          googleId,
+          provider: "google",
+          providerId: googleId,
+          avatar,
+          lastLoginAt: new Date(),
+        });
+      } catch (error) {
+        if (error?.code === 11000) {
+          user = await User.findOne({ $or: [{ email }, { provider: "google", providerId: googleId }, { googleId }] });
+        } else {
+          throw error;
+        }
+      }
     }
+
+    if (!user) {
+      return res.status(409).json({ message: "Could not resolve Google user record" });
+    }
+
+    user.googleId = googleId;
+    user.provider = "google";
+    user.providerId = googleId;
+    user.name = name;
+    user.avatar = avatar || user.avatar;
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    await writeSessionLog(req, user, "google_login");
 
     return res.json({
       message: "Google sign-in successful",
       token: createToken(user),
-      user: { id: user._id, name: user.name, email: user.email, provider: user.provider },
+      user: { id: user._id, name: user.name, email: user.email, provider: user.provider, avatar: user.avatar || "" },
     });
   } catch (error) {
     console.error(error);
     return res.status(401).json({ message: "Google sign-in failed", error: error.message });
+  }
+});
+
+router.get("/sessions", async (req, res) => {
+  try {
+    const token = getBearerToken(req);
+    if (!token) return res.status(401).json({ message: "Missing auth token" });
+
+    const payload = verifyToken(token);
+    const logs = await SessionLog.find({ userId: payload.sub }).sort({ createdAt: -1 }).limit(30).lean();
+    return res.json({ logs });
+  } catch (error) {
+    return res.status(401).json({ message: "Failed to fetch sessions", error: error.message });
   }
 });
 

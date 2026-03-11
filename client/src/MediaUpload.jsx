@@ -8,7 +8,7 @@ const LANGUAGE_OPTIONS = [
   { value: "hi", label: "Hindi" },
 ];
 
-function MediaUpload() {
+function MediaUpload({ authToken, selectedMediaId, onActivityChanged }) {
   const [file, setFile] = useState(null);
   const [msg, setMsg] = useState("");
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -53,6 +53,7 @@ function MediaUpload() {
         if (data.status === "ready" || data.status === "failed") {
           clearInterval(pollRef.current);
           pollRef.current = null;
+          onActivityChanged && onActivityChanged();
         }
       } catch (err) {
         console.error(err);
@@ -65,6 +66,38 @@ function MediaUpload() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    const loadSelectedMedia = async () => {
+      if (!selectedMediaId) return;
+      try {
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+        setLoading(true);
+        const res = await fetch(`http://localhost:5000/api/audio/${selectedMediaId}`);
+        const data = await res.json();
+        if (!res.ok) {
+          setMsg(data.message || "Failed to load selected activity");
+          return;
+        }
+        setMedia(data);
+        setUploadedFile(null);
+        setFile(null);
+        setQuickQuery("");
+        setQuickMatches([]);
+        setShowTranscript(data.status === "ready");
+      } catch (error) {
+        console.error(error);
+        setMsg("Failed to load selected activity");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSelectedMedia();
+  }, [selectedMediaId]);
 
   const handleUpload = async () => {
     if (!file) {
@@ -80,6 +113,7 @@ function MediaUpload() {
       setLoading(true);
       const res = await fetch("http://localhost:5000/api/audio/upload", {
         method: "POST",
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
         body: formData,
       });
 
@@ -90,6 +124,7 @@ function MediaUpload() {
         setShowTranscript(false);
         setQuickMatches([]);
         startPolling(data.mediaId);
+        onActivityChanged && onActivityChanged();
       }
     } catch (err) {
       console.error(err);
@@ -105,7 +140,10 @@ function MediaUpload() {
       setLoading(true);
       const res = await fetch("http://localhost:5000/api/audio/process-link", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
         body: JSON.stringify({ url: linkUrl, language }),
       });
       const data = await res.json();
@@ -114,6 +152,7 @@ function MediaUpload() {
         setShowTranscript(false);
         setQuickMatches([]);
         startPolling(data.mediaId);
+        onActivityChanged && onActivityChanged();
       }
     } catch (err) {
       console.error(err);
@@ -134,7 +173,6 @@ function MediaUpload() {
     setQuickMatches([]);
     if (inputRef.current) inputRef.current.value = "";
   };
-
 
   const formatClock = (seconds = 0) => {
     const safe = Math.max(0, Number(seconds) || 0);
@@ -347,11 +385,7 @@ function MediaUpload() {
                 )}
 
                 <div className="transcript-toggle-row">
-                  <button
-                    className="secondary-btn"
-                    onClick={() => setShowTranscript((prev) => !prev)}
-                    type="button"
-                  >
+                  <button className="secondary-btn" onClick={() => setShowTranscript((prev) => !prev)} type="button">
                     {showTranscript ? "Hide transcription" : "Show transcription"}
                   </button>
                 </div>

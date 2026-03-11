@@ -12,17 +12,18 @@ const summarizeText = require("../utils/summarize");
 const downloadYouTubeAudio = require("../utils/download");
 const Media = require("../models/Media");
 const SENSITIVE_WORDS = require("../config/sensitiveWords");
+const { verifyToken, getBearerToken } = require("../utils/authToken");
 
 const SUPPORTED_LANGUAGES = new Set(["auto", "en", "hi"]);
+const UPLOADS_DIR = path.join(__dirname, "..", "uploads");
 
 // =======================
 // Multer configuration
 // =======================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = path.join(__dirname, "..", "uploads");
-    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath, { recursive: true });
-    cb(null, uploadPath);
+    if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    cb(null, UPLOADS_DIR);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -37,6 +38,30 @@ const upload = multer({
     fileSize: 300 * 1024 * 1024, // 300MB
   },
 });
+
+function shouldConvertToWav(media = {}) {
+  const mime = String(media.mimeType || "").toLowerCase();
+  const ext = path.extname(String(media.path || "")).toLowerCase();
+
+  if (mime.startsWith("video")) return true;
+
+  const wavLike = new Set([".wav", ".wave"]);
+  if (wavLike.has(ext)) return false;
+  if (mime.includes("wav") || mime.includes("x-wav") || mime.includes("wave")) return false;
+
+  return true;
+}
+
+
+function getAuthenticatedUser(req) {
+  try {
+    const token = getBearerToken(req);
+    if (!token) return null;
+    return verifyToken(token);
+  } catch (error) {
+    return null;
+  }
+}
 
 function normalizeLanguage(language) {
   const normalized = String(language || "auto").toLowerCase().trim();
@@ -60,8 +85,8 @@ async function processMedia(mediaId) {
 
     let audioPath = media.path;
 
-    // if original was video, extract audio first
-    if (media.mimeType && media.mimeType.startsWith("video")) {
+    // normalize input for whisper.cpp: convert non-wav media to mono 16k WAV first
+    if (shouldConvertToWav(media)) {
       audioPath = await extractAudio(media.path);
     }
 
@@ -98,6 +123,8 @@ router.post("/upload", upload.single("audio"), async (req, res) => {
 
     const transcriptionLanguage = normalizeLanguage(req.body?.language);
 
+    const authUser = getAuthenticatedUser(req);
+
     const mediaDoc = new Media({
       filename: req.file.filename,
       originalName: req.file.originalname,
@@ -106,6 +133,8 @@ router.post("/upload", upload.single("audio"), async (req, res) => {
       path: req.file.path,
       source: "upload",
       transcriptionLanguage,
+      ownerId: authUser?.sub,
+      ownerEmail: authUser?.email,
       status: "uploaded",
       uploadedAt: new Date(),
     });
@@ -131,26 +160,31 @@ router.post("/process-link", async (req, res) => {
     if (!url) return res.status(400).json({ message: "Missing url" });
 
     // support YouTube (ytdl-core); extendable to other platforms
-    if (!/youtube.com|youtu.be/.test(url)) {
+    if (!/youtube\.com|youtu\.be/.test(url)) {
       return res.status(400).json({ message: "Only YouTube links are supported for now" });
     }
 
     const filename = `${Date.now()}-youtube-audio.mp4`;
-    const destPath = path.join("uploads", filename);
+    if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    const destPath = path.join(UPLOADS_DIR, filename);
 
     await downloadYouTubeAudio(url, destPath);
 
     const stats = fs.statSync(destPath);
+
+    const authUser = getAuthenticatedUser(req);
 
     const mediaDoc = new Media({
       filename,
       originalName: url,
       mimeType: "audio/mp4",
       size: stats.size,
-      path: destPath,
+      path: path.relative(path.join(__dirname, ".."), destPath),
       source: "link",
       transcriptionLanguage: normalizeLanguage(language),
       originalUrl: url,
+      ownerId: authUser?.sub,
+      ownerEmail: authUser?.email,
       status: "uploaded",
       uploadedAt: new Date(),
     });
@@ -163,6 +197,27 @@ router.post("/process-link", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Link processing failed", error: err.message });
+  }
+});
+
+// =======================
+// Previous activity for logged-in user
+// =======================
+router.get("/history", async (req, res) => {
+  try {
+    const token = getBearerToken(req);
+    if (!token) return res.status(401).json({ message: "Missing auth token" });
+
+    const authUser = verifyToken(token);
+    const items = await Media.find({ ownerId: authUser.sub })
+      .sort({ uploadedAt: -1 })
+      .limit(50)
+      .select("_id originalName filename source status uploadedAt processedAt error summary transcript.fullText")
+      .lean();
+
+    return res.json({ items });
+  } catch (error) {
+    return res.status(401).json({ message: "Failed to fetch activity", error: error.message });
   }
 });
 

@@ -41,6 +41,7 @@ WHISPER_CPP_MODEL=/absolute/path/to/ggml-base.en.bin
 # FFMPEG_PATH=/absolute/path/to/ffmpeg
 # PORT=5000
 # JWT_SECRET=sonicsearchsupersecure2026
+# LOGS_MONGODB_URI=mongodb://127.0.0.1:27017/sonicsearch_logs
 # GOOGLE_CLIENT_ID=309276754683-5oaskor4cp6hs8i0o2so994a7al78vc3.apps.googleusercontent.com
 # CLIENT_ORIGIN=http://localhost:5173
 ```

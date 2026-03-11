@@ -35,7 +35,12 @@ function runWhisper(audioPath, outDir, outBase, language = "auto") {
 
   return new Promise((resolve, reject) => {
     const child = spawn(whisperBinary, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
     let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk || "");
+    });
 
     child.stderr.on("data", (chunk) => {
       stderr += String(chunk || "");
@@ -47,9 +52,25 @@ function runWhisper(audioPath, outDir, outBase, language = "auto") {
       if (code !== 0) {
         return reject(new Error(`whisper.cpp failed with code ${code}: ${stderr.trim()}`));
       }
-      resolve();
+      resolve({ stdout, stderr });
     });
   });
+}
+
+function findWhisperJsonOutput(outDir, outBase, absAudioPath) {
+  const audioName = path.parse(absAudioPath).name;
+  const candidates = [
+    path.join(outDir, `${outBase}.json`),
+    path.join(outDir, `${audioName}.json`),
+    path.join(path.dirname(absAudioPath), `${outBase}.json`),
+    path.join(path.dirname(absAudioPath), `${audioName}.json`),
+  ];
+
+  for (const file of candidates) {
+    if (fs.existsSync(file)) return file;
+  }
+
+  return null;
 }
 
 function parseTimeValue(value, fallback, unit = "seconds") {
@@ -100,12 +121,14 @@ async function transcribeAudio(audioPath, language = "auto") {
 
   const outDir = path.resolve("uploads");
   const outBase = `${path.parse(absAudioPath).name}-transcript`;
-  const outJson = path.join(outDir, `${outBase}.json`);
+  const runResult = await runWhisper(absAudioPath, outDir, outBase, language);
+  const outJson = findWhisperJsonOutput(outDir, outBase, absAudioPath);
 
-  await runWhisper(absAudioPath, outDir, outBase, language);
-
-  if (!fs.existsSync(outJson)) {
-    throw new Error(`whisper.cpp did not generate JSON output at ${outJson}`);
+  if (!outJson) {
+    const details = [runResult.stderr, runResult.stdout].filter(Boolean).join("\n").trim();
+    throw new Error(
+      `whisper.cpp did not generate JSON output near ${outDir}. ${details ? `Command output: ${details}` : ""}`.trim()
+    );
   }
 
   const raw = JSON.parse(fs.readFileSync(outJson, "utf8"));

@@ -42,6 +42,8 @@ const MediaSchema = new mongoose.Schema({
     },
   ],
   error: String,
+  ownerId: { type: String, index: true },
+  ownerEmail: String,
 });
 
 module.exports = mongoose.model('Media', MediaSchema);

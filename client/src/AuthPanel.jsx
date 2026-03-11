@@ -18,7 +18,7 @@ function AuthPanel({ onAuthenticated }) {
   const persistAuth = useCallback(
     (payload) => {
       localStorage.setItem("ss_auth", JSON.stringify(payload));
-      onAuthenticated(payload.user);
+      onAuthenticated(payload);
     },
     [onAuthenticated]
   );

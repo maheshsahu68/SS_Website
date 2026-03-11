@@ -2,15 +2,24 @@ const { spawn, spawnSync } = require("child_process");
 const ytdl = require("ytdl-core");
 const fs = require("fs");
 
-function hasYtDlp() {
-  const check = spawnSync("yt-dlp", ["--version"], { stdio: "ignore" });
-  return check.status === 0;
+function resolveYtDlpCommand() {
+  const direct = spawnSync("yt-dlp", ["--version"], { stdio: "ignore" });
+  if (direct.status === 0) {
+    return { command: "yt-dlp", baseArgs: [] };
+  }
+
+  const pythonModule = spawnSync("python", ["-m", "yt_dlp", "--version"], { stdio: "ignore" });
+  if (pythonModule.status === 0) {
+    return { command: "python", baseArgs: ["-m", "yt_dlp"] };
+  }
+
+  return null;
 }
 
-function downloadViaYtDlp(url, destPath) {
+function downloadViaYtDlp(url, destPath, runner) {
   return new Promise((resolve, reject) => {
-    const args = ["-f", "bestaudio", "--no-playlist", "-o", destPath, url];
-    const child = spawn("yt-dlp", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const args = [...runner.baseArgs, "-f", "bestaudio", "--no-playlist", "-o", destPath, url];
+    const child = spawn(runner.command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stderr = "";
 
     child.stderr.on("data", (chunk) => {
@@ -36,16 +45,31 @@ function downloadViaYtdlCore(url, destPath) {
   });
 }
 
+function isSignatureExtractionError(err) {
+  const message = String(err?.message || "").toLowerCase();
+  return message.includes("could not extract functions") || message.includes("signature") || message.includes("cipher");
+}
+
 async function downloadYouTubeAudio(url, destPath) {
-  if (hasYtDlp()) {
+  const ytDlpRunner = resolveYtDlpCommand();
+  if (ytDlpRunner) {
     try {
-      return await downloadViaYtDlp(url, destPath);
+      return await downloadViaYtDlp(url, destPath, ytDlpRunner);
     } catch (err) {
       console.warn("yt-dlp download failed, falling back to ytdl-core:", err.message);
     }
   }
 
-  return downloadViaYtdlCore(url, destPath);
+  try {
+    return await downloadViaYtdlCore(url, destPath);
+  } catch (err) {
+    if (isSignatureExtractionError(err)) {
+      throw new Error(
+        "YouTube changed its player signature and ytdl-core could not parse it. Install yt-dlp (or python yt_dlp) and retry."
+      );
+    }
+    throw err;
+  }
 }
 
 module.exports = downloadYouTubeAudio;
