@@ -88,14 +88,15 @@ export default function SummaryPage() {
               <button
                 key={item._id}
                 onClick={() => setSelectedId(item._id)}
-                className={`w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border transition-all cursor-pointer ${
+                className={`w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border transition-all cursor-pointer min-w-0 ${
                   item._id === selectedId
                     ? "border-violet-500/50 bg-violet-500/10 text-violet-300"
                     : "border-white/6 hover:border-violet-500/25 hover:bg-white/3 text-slate-400"
                 }`}
+                title={item.originalName || item.filename}
               >
                 <FileText size={15} className="flex-shrink-0" />
-                <span className="text-sm font-medium truncate">{item.originalName || item.filename}</span>
+                <span className="text-sm font-medium truncate flex-1 min-w-0 pr-2">{item.originalName || item.filename}</span>
                 {item.summary && (
                   <span className="ml-auto text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full flex-shrink-0">
                     Summary ready

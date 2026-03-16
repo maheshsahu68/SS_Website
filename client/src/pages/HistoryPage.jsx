@@ -1,14 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { History, FileText, Youtube, HardDrive, Clock, ChevronRight, Loader2, AlertCircle, Upload, Trash2 } from "lucide-react";
+import { History, Youtube, HardDrive, Clock, ChevronRight, Loader2, AlertCircle, Upload, Trash2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-
-const formatBytes = (bytes) => {
-  if (!bytes) return "";
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
-};
 
 const StatusBadge = ({ status }) => {
   const styles = {
@@ -113,6 +106,7 @@ export default function HistoryPage() {
         <div className="grid gap-3">
           {activity.map((item) => {
             const isYoutube = item.source === "youtube" || item.source === "link";
+            const uploadType = isYoutube ? "Link" : "Upload";
             return (
               <div key={item._id} className="relative group">
               <button
@@ -132,21 +126,13 @@ export default function HistoryPage() {
                       <StatusBadge status={item.status} />
                     </div>
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                      <span className="flex items-center gap-1 text-xs text-slate-500 capitalize">
-                        <HardDrive size={11} /> {item.source}
+                      <span className="flex items-center gap-1 text-xs text-slate-500">
+                        <HardDrive size={11} /> {uploadType}
                       </span>
                       <span className="flex items-center gap-1 text-xs text-slate-500">
                         <Clock size={11} /> {new Date(item.uploadedAt).toLocaleString()}
                       </span>
-                      {item.size && (
-                        <span className="text-xs text-slate-600">{formatBytes(item.size)}</span>
-                      )}
                     </div>
-                    {(item.summary || item?.transcript?.fullText) && (
-                      <p className="text-xs text-slate-500 mt-2 line-clamp-2">
-                        {(item.summary || item.transcript.fullText).slice(0, 140)}…
-                      </p>
-                    )}
                   </div>
 
                   <ChevronRight size={18} className="text-slate-600 group-hover:text-violet-400 transition-colors flex-shrink-0 mt-0.5" />
