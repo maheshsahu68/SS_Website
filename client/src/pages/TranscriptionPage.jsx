@@ -36,16 +36,16 @@ export default function TranscriptionPage() {
   const [media, setMedia] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showWords, setShowWords] = useState(true);
+  const [showWords, setShowWords] = useState(false);
 
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [matchedStarts, setMatchedStarts] = useState(new Set());
 
-  const [triggeredSensitive, setTriggeredSensitive] = useState(new Set());
   const playerRef = useRef(null);
   const pollRef = useRef(null);
+  const hasShownSensitivePromptRef = useRef(false);
 
   const loadMedia = async (mediaId) => {
     try {
@@ -62,6 +62,7 @@ export default function TranscriptionPage() {
 
   useEffect(() => {
     if (!id) { setLoading(false); return; }
+    hasShownSensitivePromptRef.current = false;
     setLoading(true); setMedia(null); setError(""); setMatches([]); setMatchedStarts(new Set());
     loadMedia(id);
   }, [id]);
@@ -100,15 +101,13 @@ export default function TranscriptionPage() {
 
   const onTimeUpdate = () => {
     const p = playerRef.current;
-    if (!p || !media?.sensitive?.length) return;
+    if (!p || !media?.sensitive?.length || hasShownSensitivePromptRef.current) return;
     for (const s of media.sensitive) {
-      const key = `${s.word}@${s.start}`;
-      if (triggeredSensitive.has(key)) continue;
       const preStop = Math.max(0, Number(s.start) - 0.35);
       if (p.currentTime >= preStop && p.currentTime < s.end + 0.15) {
+        hasShownSensitivePromptRef.current = true;
         p.pause();
-        setTriggeredSensitive((prev) => new Set(prev).add(key));
-        if (window.confirm(`Sensitive content detected ("${s.word}") near ${s.start.toFixed(2)}s. Continue?`)) {
+        if (window.confirm("Sensitive content detected. Continue playback?")) {
           p.play().catch(() => {});
         } else {
           p.currentTime = s.end + 0.1;
@@ -191,10 +190,7 @@ export default function TranscriptionPage() {
             <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl px-5 py-4 text-amber-400 text-sm">
               <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
               <div>
-                <p className="font-semibold mb-1">Sensitive content detected</p>
-                <p className="text-xs text-amber-400/70">
-                  {media.sensitive.map((s) => `"${s.word}" at ${formatClock(s.start)}`).join(" · ")}
-                </p>
+                <p className="font-semibold">⚠ Sensitive content detected</p>
               </div>
             </div>
           )}

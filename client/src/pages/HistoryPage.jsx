@@ -117,7 +117,7 @@ export default function HistoryPage() {
               <div key={item._id} className="relative group">
               <button
                 onClick={() => navigate(`/transcription/${item._id}`)}
-                className="w-full text-left bg-[#0e1628] border border-white/6 rounded-2xl p-5 hover:border-violet-500/30 hover:bg-[#111e35] transition-all group cursor-pointer"
+                className="w-full text-left bg-[#0e1628] border border-white/6 rounded-2xl p-5 pr-14 hover:border-violet-500/30 hover:bg-[#111e35] transition-all group cursor-pointer"
               >
                 <div className="flex items-start gap-4">
                   <div className="w-11 h-11 rounded-xl bg-violet-500/10 border border-violet-500/15 flex items-center justify-center flex-shrink-0 group-hover:bg-violet-500/20 transition-colors">

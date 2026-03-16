@@ -1,13 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Upload, Link2, Music, Video, X, CheckCircle, AlertCircle, Loader2, Globe } from "lucide-react";
+import { Upload, Link2, Music, Video, X, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-
-const LANGUAGE_OPTIONS = [
-  { value: "auto", label: "Auto detect" },
-  { value: "en", label: "English" },
-  { value: "hi", label: "Hindi" },
-];
 
 const formatBytes = (bytes) => {
   if (!bytes) return "";
@@ -24,7 +18,6 @@ export default function UploadPage() {
   const [file, setFile] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
-  const [language, setLanguage] = useState("auto");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null); // { type: "success"|"error", text }
   const inputRef = useRef(null);
@@ -36,7 +29,6 @@ export default function UploadPage() {
     if (!file) { setMsg({ type: "error", text: "Please select an audio or video file." }); return; }
     const formData = new FormData();
     formData.append("audio", file);
-    formData.append("language", language);
     try {
       setLoading(true); setMsg(null);
       const res = await fetch("http://localhost:5000/api/audio/upload", {
@@ -59,7 +51,7 @@ export default function UploadPage() {
       const res = await fetch("http://localhost:5000/api/audio/process-link", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ url: linkUrl, language }),
+        body: JSON.stringify({ url: linkUrl }),
       });
       const data = await res.json();
       if (!res.ok) { setMsg({ type: "error", text: data.message || "Failed to process link" }); return; }
@@ -78,33 +70,6 @@ export default function UploadPage() {
       <div className="mb-10">
         <h1 className="text-3xl font-extrabold text-slate-100 tracking-tight">Upload Media</h1>
         <p className="text-slate-500 mt-2">Upload an audio/video file or paste a YouTube link to generate a transcript.</p>
-      </div>
-
-      {/* Language selector */}
-      <div className="bg-[#0e1628] border border-white/8 rounded-2xl p-5 mb-6">
-        <label className="text-xs uppercase tracking-widest text-slate-500 font-semibold block mb-3">
-          Transcription Language
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {LANGUAGE_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setLanguage(opt.value)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-all cursor-pointer ${
-                language === opt.value
-                  ? "bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/20"
-                  : "border-white/8 text-slate-400 hover:border-violet-500/40 hover:text-slate-200"
-              }`}
-            >
-              <Globe size={14} /> {opt.label}
-            </button>
-          ))}
-        </div>
-        {language === "hi" && (
-          <p className="text-xs text-amber-400/80 mt-3 flex items-center gap-1.5">
-            <AlertCircle size={13} /> Use a multilingual Whisper model (not <code className="font-mono">*.en</code> variants) for Hindi.
-          </p>
-        )}
       </div>
 
       {/* Tabs */}
