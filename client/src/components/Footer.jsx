@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { AudioWaveform, Github, Twitter } from "lucide-react";
+import { AudioWaveform, Github, Linkedin } from "lucide-react";
 
 export default function Footer() {
   const year = new Date().getFullYear();
@@ -42,13 +42,13 @@ export default function Footer() {
         <div className="mt-10 pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span className="text-xs text-slate-600">© {year} SonicSearch. All rights reserved.</span>
           <div className="flex items-center gap-4">
-            <a href="https://github.com" target="_blank" rel="noopener noreferrer" aria-label="GitHub"
+            <a href="https://github.com/maheshsahu68" target="_blank" rel="noopener noreferrer" aria-label="GitHub"
               className="text-slate-600 hover:text-violet-400 transition-colors">
               <Github size={16} />
             </a>
-            <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" aria-label="Twitter"
+            <a href="https://www.linkedin.com/in/mahesh-sahu-42663221a/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"
               className="text-slate-600 hover:text-violet-400 transition-colors">
-              <Twitter size={16} />
+              <Linkedin size={16} />
             </a>
           </div>
         </div>
