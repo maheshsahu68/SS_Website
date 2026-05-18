@@ -19,31 +19,41 @@ const TranscriptSchema = new mongoose.Schema({
   words: [WordSchema],
 });
 
-const MediaSchema = new mongoose.Schema({
-  filename: String,
-  originalName: String,
-  mimeType: String,
-  size: Number,
-  path: String,
-  source: { type: String, enum: ['upload', 'link'], default: 'upload' },
-  transcriptionLanguage: { type: String, default: 'auto' },
-  originalUrl: String,
-  status: { type: String, enum: ['uploaded', 'processing', 'ready', 'failed'], default: 'uploaded' },
-  uploadedAt: Date,
-  processedAt: Date,
-  transcript: TranscriptSchema,
-  summary: String,
-  sensitive: [
-    {
-      word: String,
-      start: Number,
-      end: Number,
-      idx: Number,
-    },
-  ],
-  error: String,
-  ownerId: { type: String, index: true },
-  ownerEmail: String,
-});
+const MediaSchema = new mongoose.Schema(
+  {
+    filename: String,
+    originalName: String,
+    mimeType: String,
+    size: Number,
+    path: String,
+    source: { type: String, enum: ['upload', 'link'], default: 'upload' },
+    transcriptionLanguage: { type: String, default: 'auto' },
+    originalUrl: String,
+    status: { type: String, enum: ['uploaded', 'processing', 'ready', 'failed'], default: 'uploaded' },
+    uploadedAt: Date,
+    processedAt: Date,
+    transcript: TranscriptSchema,
+    summary: String,
+    sensitive: [
+      {
+        word: String,
+        start: Number,
+        end: Number,
+        idx: Number,
+      },
+    ],
+    error: String,
+    ownerId: { type: String, index: true },
+    ownerEmail: String,
+  },
+  { timestamps: true }
+);
+
+// Speeds up History page query: find by owner and sort by newest uploads.
+MediaSchema.index({ ownerId: 1, uploadedAt: -1 });
+
+// Speeds up retention cleanup query windows.
+MediaSchema.index({ createdAt: 1 });
+MediaSchema.index({ uploadedAt: 1 });
 
 module.exports = mongoose.model('Media', MediaSchema);

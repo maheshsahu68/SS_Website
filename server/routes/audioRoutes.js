@@ -13,6 +13,7 @@ const downloadYouTubeAudio = require("../utils/download");
 const Media = require("../models/Media");
 const SENSITIVE_WORDS = require("../config/sensitiveWords");
 const { verifyToken, getBearerToken } = require("../utils/authToken");
+const { deleteMediaController } = require("../controllers/mediaController");
 
 const SUPPORTED_LANGUAGES = new Set(["auto", "en", "hi"]);
 const UPLOADS_DIR = path.join(__dirname, "..", "uploads");
@@ -278,31 +279,7 @@ router.post("/:id/summary", async (req, res) => {
 // =======================
 // Delete media record + file
 // =======================
-router.delete("/:id", async (req, res) => {
-  try {
-    const token = getBearerToken(req);
-    if (!token) return res.status(401).json({ message: "Missing auth token" });
-    const authUser = verifyToken(token);
-
-    const media = await Media.findOne({ _id: req.params.id, ownerId: authUser.sub });
-    if (!media) return res.status(404).json({ message: "Not found or not authorised" });
-
-    // Remove file from disk (best-effort)
-    const filePath = media.path;
-    if (filePath) {
-      const absPath = path.isAbsolute(filePath)
-        ? filePath
-        : path.join(__dirname, "..", filePath);
-      try { fs.unlinkSync(absPath); } catch (_) { /* already gone */ }
-    }
-
-    await Media.findByIdAndDelete(req.params.id);
-    res.json({ message: "Deleted" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Delete failed", error: err.message });
-  }
-});
+router.delete("/:id", deleteMediaController);
 
 // =======================
 // Sensitive matches

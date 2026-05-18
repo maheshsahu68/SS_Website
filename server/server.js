@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 
 const audioRoutes = require("./routes/audioRoutes");
 const authRoutes = require("./routes/authRoutes");
+const { startMediaHistoryCleanupJob } = require("./jobs/mediaHistoryCleanupJob");
 
 // Connect to MongoDB
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/sonicsearch";
@@ -26,6 +27,8 @@ app.use("/api/auth", authRoutes);
 app.get("/", (req, res) => {
   res.send("SonicSearch Backend Running 🚀");
 });
+
+startMediaHistoryCleanupJob();
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
