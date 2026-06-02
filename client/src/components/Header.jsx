@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { AudioWaveform, Upload, History, Search, FileText, Sparkles, LogOut, Menu, X } from "lucide-react";
+import { AudioWaveform, Upload, History, Search, FileText, Sparkles, LogOut, Menu, X, User as UserIcon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const NAV_ITEMS = [
@@ -16,6 +16,11 @@ export default function Header() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [user?.avatar]);
 
   const handleLogout = () => {
     logout();
@@ -25,6 +30,8 @@ export default function Header() {
   };
 
   const initial = (user?.name || user?.email || "U").trim().charAt(0).toUpperCase();
+  const shouldShowAvatarImage = Boolean(user?.avatar) && !avatarFailed;
+  const fallbackAvatar = initial || <UserIcon size={16} aria-hidden="true" />;
 
   return (
     <header className="sticky top-0 z-50 bg-[#070d1a]/80 backdrop-blur-xl border-b border-violet-900/20">
@@ -70,10 +77,10 @@ export default function Header() {
                 aria-label="User menu"
                 title={user.name || user.email}
               >
-                {user.avatar ? (
-                  <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" />
+                {shouldShowAvatarImage ? (
+                  <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" onError={() => setAvatarFailed(true)} />
                 ) : (
-                  initial
+                  fallbackAvatar
                 )}
               </button>
 
@@ -83,7 +90,11 @@ export default function Header() {
                   <div className="absolute top-[calc(100%+10px)] right-0 w-60 bg-[#111827] border border-violet-900/30 rounded-2xl shadow-2xl shadow-black/60 p-4 z-50">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-11 h-11 rounded-full bg-gradient-to-br from-violet-600 to-purple-500 flex items-center justify-center font-bold text-lg text-white flex-shrink-0 overflow-hidden">
-                        {user.avatar ? <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" /> : initial}
+                        {shouldShowAvatarImage ? (
+                          <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" onError={() => setAvatarFailed(true)} />
+                        ) : (
+                          fallbackAvatar
+                        )}
                       </div>
                       <div>
                         <div className="text-sm font-semibold text-slate-100">{user.name || "User"}</div>
